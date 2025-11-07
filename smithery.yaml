@@ -1,16 +1,13 @@
-# Smithery project config (HTTP server)
 name: tushare-mcp
-version: "0.3.0"
-description: "MCP HTTP tool for querying Tushare A-share data"
+version: "1.0.0"
+description: "Tushare A-share data over MCP HTTP server"
 
-# 使用自定义 Dockerfile
 dockerfile: "Dockerfile.smithery"
 
-# 告诉 Smithery 如何在容器里启动 HTTP 服务
 startCommand:
-  type: "http"        # 远程部署必须 http
-  port: 3000          # 与 Dockerfile 一致
-  path: "/"           # 扫描根路径（FastMCP 自带 JSON-RPC/工具枚举）
+  type: "http"
+  port: 3000
+  path: "/mcp"    # ✅ JSON-RPC MCP endpoint (scanner will POST here)
   command:
     - "uvicorn"
     - "app_http:app"
@@ -18,14 +15,11 @@ startCommand:
     - "0.0.0.0"
     - "--port"
     - "3000"
-
-  # 可选：生成配置表单（这里给空对象保证校验通过）
   configSchema:
     type: "object"
     properties: {}
   exampleConfig: {}
 
-# 扫描/测试会话的环境变量（从 Test Profile 的 Secrets 注入）
 session:
   env:
     TUSHARE_TOKEN: "${secrets.TUSHARE_TOKEN}"
