@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from mcp.server.fastmcp import FastMCP
 
 # ---------------------------
-# 1) 初始化 Tushare
+# 1) 初始化 Tushare（允许无 Token 启动；调用时再报 401）
 # ---------------------------
 TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN", "").strip()
 try:
@@ -16,12 +16,11 @@ try:
     if TUSHARE_TOKEN:
         ts.set_token(TUSHARE_TOKEN)
     pro = ts.pro_api()
-    # 轻探针，不抛异常阻断启动
     try:
-        pro.stock_basic(limit=1)
-        print("[init] Tushare token OK")
+        pro.stock_basic(limit=1)  # 轻探针，不影响启动
+        print("[init] Tushare probe OK")
     except Exception as e:
-        print(f"[init] token set, probe failed (won't block): {e}")
+        print(f"[init] Tushare probe failed (won't block): {e}")
 except Exception as e:
     print("[init] tushare import failed:", e)
     pro = None
@@ -36,10 +35,46 @@ def _ensure_token():
 
 
 # ---------------------------
-# 2) 定义 MCP 服务器与工具
+# 2) 定义 MCP 服务器（根路径提供 JSON-RPC + well-known）
 # ---------------------------
 mcp = FastMCP("tushare-mcp", stateless_http=True)
 
+# 生成根路径下的 FastAPI 应用（JSON-RPC 默认挂载在 "/"）
+app: FastAPI = mcp.streamable_http_app()
+
+# --- MCP well-known（根路径，供扫描器读取 Test Config） ---
+@app.get("/.well-known/mcp-config")
+def well_known_mcp_config():
+    return {
+        "configSchema": {
+            "type": "object",
+            "properties": {
+                "TUSHARE_TOKEN": {"type": "string", "description": "Tushare API Token"}
+            },
+            "required": ["TUSHARE_TOKEN"]
+        },
+        "exampleConfig": {"TUSHARE_TOKEN": "your_token_here"}
+    }
+
+@app.get("/.well-known/mcp.json")
+def well_known_mcp_json():
+    # 告知客户端：使用 HTTP 传输，RPC 在根路径 "/"
+    return {
+        "name": "tushare-mcp",
+        "version": "1.1.0",
+        "transport": {"type": "http", "rpcPath": "/"},
+        "endpoints": {"rpc": "/"}
+    }
+
+# --- 健康检查（根路径 GET） ---
+@app.get("/")
+def health_root():
+    return {"status": "ok", "name": "tushare-mcp", "rpc": "/"}
+
+
+# ---------------------------
+# 3) 工具定义
+# ---------------------------
 @mcp.tool()
 def get_stock_basic_info(ts_code: str = "", name: str = "", exchange: str = "", list_status: str = "") -> List[Dict]:
     """
@@ -52,6 +87,7 @@ def get_stock_basic_info(ts_code: str = "", name: str = "", exchange: str = "", 
     ok, resp = _ensure_token()
     if not ok:
         return resp
+
     df = pro.stock_basic(
         ts_code=ts_code or None,
         name=name or None,
@@ -64,17 +100,20 @@ def get_stock_basic_info(ts_code: str = "", name: str = "", exchange: str = "", 
 @mcp.tool()
 def search_stocks(keyword: str) -> List[Dict]:
     """
-    基于名称/行业/地区的关键词搜索（极简召回）。
+    基于名称/行业/地区的关键词搜索。
     """
     ok, resp = _ensure_token()
     if not ok:
         return resp
+
     df = pro.stock_basic(fields="ts_code,symbol,name,area,industry,market,list_date")
     if df is None or df.empty:
         return []
+
     kw = (keyword or "").strip().lower()
     if not kw:
         return []
+
     mask = (
         df["ts_code"].astype(str).str.lower().str.contains(kw)
         | df["symbol"].astype(str).str.lower().str.contains(kw)
@@ -93,6 +132,7 @@ def get_income_statement(ts_code: str, period: str = "", limit: int = 60) -> Lis
     ok, resp = _ensure_token()
     if not ok:
         return resp
+
     df = pro.income(ts_code=ts_code, period=period or None, limit=limit)
     if df is None or df.empty:
         return []
@@ -112,53 +152,3 @@ def check_token_status() -> Dict:
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "reason": str(e)}
-
-
-# ---------------------------
-# 3) FastAPI 应用与路由（关键修正）
-# ---------------------------
-app = FastAPI()
-
-# 3.1 MCP JSON-RPC 端点固定在 /mcp
-@app.post("/mcp")
-async def mcp_rpc(request: Request):
-    # 直接把请求交给 FastMCP 的 RPC 处理
-    return await mcp.rpc(request)
-
-# 3.2 在 /mcp/.well-known/* 返回测试配置（扫描器会按 path 前缀来找）
-@app.get("/mcp/.well-known/mcp-config")
-def well_known_scoped():
-    return {
-        "configSchema": {
-            "type": "object",
-            "properties": {
-                "TUSHARE_TOKEN": {"type": "string", "description": "Tushare API Token"}
-            },
-            "required": ["TUSHARE_TOKEN"]
-        },
-        "exampleConfig": {"TUSHARE_TOKEN": "your_token_here"}
-    }
-
-# 3.3 兼容某些实现会在根路径找 .well-known（双投放，避免 404）
-@app.get("/.well-known/mcp-config")
-def well_known_root():
-    return {
-        "configSchema": {
-            "type": "object",
-            "properties": {
-                "TUSHARE_TOKEN": {"type": "string", "description": "Tushare API Token"}
-            },
-            "required": ["TUSHARE_TOKEN"]
-        },
-        "exampleConfig": {"TUSHARE_TOKEN": "your_token_here"}
-    }
-
-# 3.4 健康检查（Smithery 唤醒用）
-@app.get("/")
-def health_root():
-    return {"status": "ok", "name": "tushare-mcp", "rpc": "/mcp"}
-
-# 3.5 可选：在 /mcp/health 下也给一个
-@app.get("/mcp/health")
-def health_scoped():
-    return {"status": "ok", "name": "tushare-mcp", "version": "1.0.2"}
