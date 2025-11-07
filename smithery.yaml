@@ -1,25 +1,25 @@
 name: tushare-mcp
 version: "1.1.0"
-description: "Tushare A-share data over MCP HTTP (root path)"
+description: "Tushare A-share data over MCP HTTP (Streamable HTTP transport)"
 
-dockerfile: "Dockerfile.smithery"
+runtime: "container"
+
+build:
+  dockerfile: "Dockerfile"
+  dockerBuildPath: "."
 
 startCommand:
   type: "http"
-  port: 3000
-  path: "/"     # ✅ 统一根路径，避免前缀错位
-  command:
-    - "uvicorn"
-    - "app_http:app"
-    - "--host"
-    - "0.0.0.0"
-    - "--port"
-    - "3000"
   configSchema:
     type: "object"
-    properties: {}
-  exampleConfig: {}
+    properties:
+      TUSHARE_TOKEN:
+        type: "string"
+        title: "Tushare API Token"
+        description: "Your Tushare Pro API token from https://tushare.pro/user/token"
+    required: ["TUSHARE_TOKEN"]
+  exampleConfig:
+    TUSHARE_TOKEN: "your_token_here"
 
-session:
-  env:
-    TUSHARE_TOKEN: "${secrets.TUSHARE_TOKEN}"
+env:
+  PYTHONUNBUFFERED: "1"

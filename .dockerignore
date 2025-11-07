@@ -1,0 +1,44 @@
+# Git 相关
+.git
+.gitignore
+.github
+
+# Python 缓存
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 虚拟环境
+venv/
+env/
+ENV/
+.venv
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 测试和覆盖率
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# 文档
+*.md
+docs/
+LICENSE
+
+# 本地配置
+.env
+.env.local
+*.log
+
+# 其他
+.DS_Store
+*.bak
