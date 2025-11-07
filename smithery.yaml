@@ -1,13 +1,13 @@
 name: tushare-mcp
-version: "1.0.0"
-description: "Tushare A-share data over MCP HTTP server"
+version: "1.0.1"
+description: "Tushare A-share data over MCP Streamable HTTP"
 
 dockerfile: "Dockerfile.smithery"
 
 startCommand:
   type: "http"
   port: 3000
-  path: "/mcp"    # ✅ JSON-RPC MCP endpoint (scanner will POST here)
+  path: "/mcp"   # ← MCP 子应用所在前缀；/.well-known 和 initialize 都在这里
   command:
     - "uvicorn"
     - "app_http:app"
