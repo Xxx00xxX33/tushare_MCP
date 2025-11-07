@@ -1,10 +1,10 @@
 # MCP framework
 mcp==1.21.0
 
-# Tushare: 最新可用版本为 1.4.24（>=2.0.0 不存在）
+# Tushare: PyPI 最新稳定为 1.4.24（2.x 不存在）
 tushare==1.4.24
 
-# 显式指定 wheels 兼容 python:3.10-slim，避免编译
+# 与 python:3.10-slim 兼容的 wheels，避免编译
 pandas==2.2.2
 numpy==1.26.4
 requests>=2.31.0
