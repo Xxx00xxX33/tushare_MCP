@@ -1,3 +1,37 @@
+# --- begin: env-based tushare init (non-interactive friendly) ---
+import os
+
+def _init_tushare_from_env():
+    """
+    Initialize Tushare using env var TUSHARE_TOKEN (if provided).
+    This lets Smithery's scanner start without interactive prompts.
+    """
+    try:
+        import tushare as ts
+    except Exception as e:
+        print(f"[init] tushare import failed: {e}")
+        return
+
+    token = os.getenv("TUSHARE_TOKEN", "").strip()
+    if not token:
+        print("[init] TUSHARE_TOKEN not found; tools may return auth error if called")
+        return
+
+    try:
+        ts.set_token(token)
+        pro = ts.pro_api()
+        # Lightweight probe; don't raise if it fails
+        try:
+            pro.stock_basic(limit=1)
+            print("[init] Tushare token OK")
+        except Exception as pe:
+            print(f"[init] token set, probe failed (won't block): {pe}")
+    except Exception as e:
+        print(f"[init] failed to set Tushare token: {e}")
+
+# 调用一次，保证在无交互时也能完成初始化
+_init_tushare_from_env()
+# --- end: env-based tushare init ---
 import os
 from pathlib import Path
 from typing import Optional
