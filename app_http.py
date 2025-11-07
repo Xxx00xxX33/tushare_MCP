@@ -7,8 +7,9 @@ import json
 from typing import List, Dict
 
 import pandas as pd
+from fastmcp import FastMCP
+from starlette.requests import Request
 from starlette.responses import JSONResponse
-from mcp.server.fastmcp import FastMCP
 
 # ---------------------------
 # 1) 初始化 Tushare
@@ -47,13 +48,50 @@ def _ensure_token():
 
 
 # ---------------------------
-# 2) 创建 MCP 服务器（Streamable HTTP）
+# 2) 创建 MCP 服务器
 # ---------------------------
-mcp = FastMCP("tushare-mcp", stateless_http=True)
+mcp = FastMCP("tushare-mcp")
 
 
 # ---------------------------
-# 3) MCP 工具定义
+# 3) 添加自定义路由
+# ---------------------------
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request: Request) -> JSONResponse:
+    """健康检查端点"""
+    return JSONResponse({
+        "status": "healthy",
+        "service": "tushare-mcp",
+        "version": "1.2.0",
+        "token_configured": bool(TUSHARE_TOKEN),
+        "mcp_endpoint": "/mcp"
+    })
+
+
+@mcp.custom_route("/", methods=["GET"])
+async def root(request: Request) -> JSONResponse:
+    """根路径信息"""
+    return JSONResponse({
+        "name": "tushare-mcp",
+        "version": "1.2.0",
+        "description": "Tushare A-share data MCP server with Streamable HTTP transport",
+        "transport": "streamable-http",
+        "endpoints": {
+            "mcp": "/mcp",
+            "health": "/health",
+            "root": "/"
+        },
+        "tools": [
+            "get_stock_basic_info",
+            "search_stocks",
+            "get_income_statement",
+            "check_token_status"
+        ]
+    })
+
+
+# ---------------------------
+# 4) MCP 工具定义
 # ---------------------------
 @mcp.tool()
 def get_stock_basic_info(
@@ -212,38 +250,14 @@ def check_token_status() -> Dict:
 
 
 # ---------------------------
-# 4) 生成 Starlette 应用
+# 5) 创建 ASGI 应用（用于 Uvicorn）
 # ---------------------------
-app = mcp.streamable_http_app()
-
-# 添加自定义路由
-@app.route("/health", methods=["GET"])
-async def health_check(request):
-    """健康检查端点"""
-    return JSONResponse({
-        "status": "healthy",
-        "service": "tushare-mcp",
-        "version": "1.1.0",
-        "token_configured": bool(TUSHARE_TOKEN)
-    })
-
-@app.route("/", methods=["GET"])
-async def root(request):
-    """根路径信息"""
-    return JSONResponse({
-        "name": "tushare-mcp",
-        "version": "1.1.0",
-        "description": "Tushare A-share data MCP server with Streamable HTTP transport",
-        "transport": "streamable-http",
-        "endpoints": {
-            "health": "/health",
-            "mcp": "/mcp"
-        }
-    })
+# 使用 http_app() 方法创建 ASGI 应用
+app = mcp.http_app()
 
 
 # ---------------------------
-# 5) 启动入口（用于本地测试）
+# 6) 启动入口（用于本地测试）
 # ---------------------------
 if __name__ == "__main__":
     import uvicorn
@@ -251,7 +265,10 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
     print(f"Starting Tushare MCP server on port {port}")
     print(f"Token configured: {bool(TUSHARE_TOKEN)}")
+    print(f"MCP endpoint: http://0.0.0.0:{port}/mcp")
+    print(f"Health check: http://0.0.0.0:{port}/health")
     
+    # 使用 uvicorn 直接运行 ASGI 应用
     uvicorn.run(
         app,
         host="0.0.0.0",
