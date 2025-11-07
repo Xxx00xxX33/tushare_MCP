@@ -4,6 +4,7 @@
 
 基于 Model Context Protocol (MCP) 的智能股票数据助手
 
+[![smithery badge](https://smithery.ai/badge/@Xxx00xxX33/tushare_mcp)](https://smithery.ai/server/@Xxx00xxX33/tushare_mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
 [![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-green)](https://modelcontextprotocol.io/)
