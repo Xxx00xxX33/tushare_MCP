@@ -6,8 +6,7 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PORT=8000
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -27,12 +26,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制应用代码
 COPY . .
 
-# 暴露端口
-EXPOSE 8000
+# 给启动脚本添加执行权限
+RUN chmod +x start.sh
 
-# 健康检查
+# 暴露端口（Smithery 使用 8081）
+EXPOSE 8081
+
+# 健康检查（使用 PORT 环境变量，默认 8081）
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8081}/health || exit 1
 
-# 启动命令
-CMD ["uvicorn", "app_http:app", "--host", "0.0.0.0", "--port", "8000"]
+# 启动命令 - 使用启动脚本
+CMD ["./start.sh"]
