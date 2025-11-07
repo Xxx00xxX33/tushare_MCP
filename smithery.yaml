@@ -1,17 +1,35 @@
+# Smithery project config (HTTP server, custom container)
 name: tushare-mcp
-version: "0.1.0"
-description: "MCP tool for querying Tushare (A-share data) from chat"
+version: "0.2.0"
+description: "MCP HTTP tool for querying Tushare A-share data"
 
-# 当前为 MCP 进程（stdio）模式
-entrypoint:
-  type: process
-  command: ["python", "server.py"]
+# 使用你的自定义 Dockerfile（文件名与位置必须存在）
+dockerfile: "Dockerfile.smithery"
 
-# 让扫描器在“测试配置”里注入密钥并成功枚举工具
+# 告诉 Smithery 如何在容器里启动 HTTP 服务
+startCommand:
+  # 必须为 http（远程部署/平台扫描依赖 HTTP）
+  type: "http"
+  # 你的容器监听的端口，与 Dockerfile/uvicorn 一致
+  port: 3000
+  # 用于探测与枚举的基础路径（你的根路由）
+  path: "/"
+  # 实际启动命令（与 Dockerfile CMD 一致也可以）
+  command:
+    - "uvicorn"
+    - "app_http:app"
+    - "--host"
+    - "0.0.0.0"
+    - "--port"
+    - "3000"
+
+  # 可选：给扫描器/用户生成配置表单（这里给空对象也能过校验）
+  configSchema:
+    type: "object"
+    properties: {}
+  exampleConfig: {}
+
+# 扫描/测试会话需要的环境变量（从 Test Profile 的 Secrets 注入）
 session:
   env:
     TUSHARE_TOKEN: "${secrets.TUSHARE_TOKEN}"
-  # 如需把密钥写入文件也可以用 files:
-  # files:
-  #   - path: "/app/.tushare_mcp/.env"
-  #     contents: "TUSHARE_TOKEN=${secrets.TUSHARE_TOKEN}\n"
