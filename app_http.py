@@ -1,9 +1,9 @@
 import os
 import json
-import pandas as pd
 from typing import List, Dict
 
-from fastapi import FastAPI
+import pandas as pd
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from mcp.server.fastmcp import FastMCP
 
@@ -16,6 +16,12 @@ try:
     if TUSHARE_TOKEN:
         ts.set_token(TUSHARE_TOKEN)
     pro = ts.pro_api()
+    # 轻探针，不抛异常阻断启动
+    try:
+        pro.stock_basic(limit=1)
+        print("[init] Tushare token OK")
+    except Exception as e:
+        print(f"[init] token set, probe failed (won't block): {e}")
 except Exception as e:
     print("[init] tushare import failed:", e)
     pro = None
@@ -30,9 +36,9 @@ def _ensure_token():
 
 
 # ---------------------------
-# 2) 定义 MCP 服务器（工具）
+# 2) 定义 MCP 服务器与工具
 # ---------------------------
-mcp = FastMCP("tushare-mcp")
+mcp = FastMCP("tushare-mcp", stateless_http=True)
 
 @mcp.tool()
 def get_stock_basic_info(ts_code: str = "", name: str = "", exchange: str = "", list_status: str = "") -> List[Dict]:
@@ -109,15 +115,19 @@ def check_token_status() -> Dict:
 
 
 # ---------------------------
-# 3) 生成 MCP 的 ASGI 子应用，并把 /.well-known 也放进去
+# 3) FastAPI 应用与路由（关键修正）
 # ---------------------------
-# 关键：把 MCP 子应用放到 path="/mcp"，此子应用中自带 JSON-RPC (POST /mcp)
-#      同时在“同一个子应用”里提供 .well-known，确保 scanner 以 /mcp 为前缀访问时能命中
-mcp_app = mcp.http_app(path="/mcp")
+app = FastAPI()
 
-# 在同一“子应用”中暴露 .well-known（注意：这里注册在 mcp_app 上）
-@mcp_app.get("/.well-known/mcp-config")
-def well_known_mcp_config():
+# 3.1 MCP JSON-RPC 端点固定在 /mcp
+@app.post("/mcp")
+async def mcp_rpc(request: Request):
+    # 直接把请求交给 FastMCP 的 RPC 处理
+    return await mcp.rpc(request)
+
+# 3.2 在 /mcp/.well-known/* 返回测试配置（扫描器会按 path 前缀来找）
+@app.get("/mcp/.well-known/mcp-config")
+def well_known_scoped():
     return {
         "configSchema": {
             "type": "object",
@@ -129,25 +139,26 @@ def well_known_mcp_config():
         "exampleConfig": {"TUSHARE_TOKEN": "your_token_here"}
     }
 
-@mcp_app.get("/.well-known/mcp.json")
-def well_known_mcp_json():
-    # 提示客户端：JSON-RPC 入口以及使用的传输
+# 3.3 兼容某些实现会在根路径找 .well-known（双投放，避免 404）
+@app.get("/.well-known/mcp-config")
+def well_known_root():
     return {
-        "name": "tushare-mcp",
-        "version": "1.0.1",
-        "transport": {"type": "http", "rpcPath": "/mcp"},
-        "endpoints": {"rpc": "/mcp"}
+        "configSchema": {
+            "type": "object",
+            "properties": {
+                "TUSHARE_TOKEN": {"type": "string", "description": "Tushare API Token"}
+            },
+            "required": ["TUSHARE_TOKEN"]
+        },
+        "exampleConfig": {"TUSHARE_TOKEN": "your_token_here"}
     }
 
-# ---------------------------
-# 4) 导出最终应用：仅包含 MCP 子应用的所有路由
-#    这样最终可访问：
-#      - POST /mcp           ← JSON-RPC initialize 等
-#      - GET  /mcp/.well-known/mcp-config
-# ---------------------------
-app = FastAPI(routes=[*mcp_app.routes], lifespan=mcp_app.lifespan)
+# 3.4 健康检查（Smithery 唤醒用）
+@app.get("/")
+def health_root():
+    return {"status": "ok", "name": "tushare-mcp", "rpc": "/mcp"}
 
-# 可选健康检查（挂在 /mcp/health，仍然在同一前缀内）
+# 3.5 可选：在 /mcp/health 下也给一个
 @app.get("/mcp/health")
-def health():
-    return {"status": "ok", "name": "tushare-mcp", "version": "1.0.1"}
+def health_scoped():
+    return {"status": "ok", "name": "tushare-mcp", "version": "1.0.2"}
