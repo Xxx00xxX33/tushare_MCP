@@ -1,28 +1,27 @@
-FROM python:3.10-slim
+# Sidecar (required by Smithery)
+FROM registry.depot.dev/dsk57gtb7p:http-sidecar AS sidecar_image
 
-# 安装系统依赖
+# App image
+FROM python:3.10-slim AS stage-1
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    python3-dev \
-    libffi-dev \
-    libc-dev \
-    make \
+    ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 设置工作目录
 WORKDIR /app
 
-# 复制requirements.txt
+# Install dependencies first (layer caching)
 COPY requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# 安装Python依赖
-RUN pip install --no-cache-dir -r requirements.txt
-
-# 复制其余项目文件
+# Then copy source code
 COPY . .
 
-# 设置环境变量
-ENV PYTHONUNBUFFERED=1
-
-# 启动MCP服务器
-CMD ["python", "server.py"] 
+# Entry (MCP process mode)
+CMD ["python", "server.py"]
