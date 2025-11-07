@@ -5,7 +5,7 @@ build:
   context: .
 
 startCommand:
-  type: stdio
+  type: http
   configSchema:
     type: object
     properties:
@@ -22,4 +22,5 @@ startCommand:
           "TUSHARE_TOKEN": config.tushare_token
         }
       };
+
     } 
