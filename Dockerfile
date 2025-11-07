@@ -14,8 +14,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制项目源码
 COPY . .
 
-# 以 HTTP 方式启动（FastMCP 基于 FastAPI / JSON-RPC）
 CMD ["uvicorn", "app_http:app", "--host", "0.0.0.0", "--port", "3000"]
