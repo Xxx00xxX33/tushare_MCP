@@ -1,11 +1,7 @@
-# HTTP server
 fastapi==0.115.5
 uvicorn==0.32.0
-
-# MCP runtime
 mcp==1.21.0
 
-# Data deps
 tushare==1.4.24
 pandas==2.2.2
 numpy==1.26.4
