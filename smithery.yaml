@@ -1,14 +1,13 @@
 name: tushare-mcp
-version: "1.0.2"
-description: "Tushare A-share data over MCP HTTP"
+version: "1.1.0"
+description: "Tushare A-share data over MCP HTTP (root path)"
 
 dockerfile: "Dockerfile.smithery"
 
 startCommand:
   type: "http"
   port: 3000
-  # 扫描器将以该前缀探测 /.well-known/mcp-config 并 POST initialize
-  path: "/mcp"
+  path: "/"     # ✅ 统一根路径，避免前缀错位
   command:
     - "uvicorn"
     - "app_http:app"
